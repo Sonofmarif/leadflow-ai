@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Multiple Buttons</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="bg-orb orb-1"></div>
+  <div class="bg-orb orb-2"></div>
+  <div class="app-shell">
+    <div class="single-layout">
+      <section class="panel">
+        <div class="card glass-card">
+          <div class="tool-grid">
+            <button id="autoPublishBtn" class="btn btn-tool"><span class="btn-text">🚀 Auto Publish</span></button>
+            <button id="draftOpenerBtn" class="btn btn-tool"><span class="btn-text">📂 Draft Opener</span></button>
+            <button id="relistBtn" class="btn btn-tool"><span class="btn-text">🔄 Relist Items</span></button>
+            <button id="renewBtn" class="btn btn-tool"><span class="btn-text">♻ Renew Items</span></button>
+            <button id="saveDraftBtn" class="btn btn-tool"><span class="btn-text">💾 Save Draft</span></button>
+            <button id="markAvailableBtn" class="btn btn-tool"><span class="btn-text">✔ Mark As Available</span></button>
+            <button id="markSoldBtn" class="btn btn-tool"><span class="btn-text">🔻 Mark As Sold</span></button>
+            <button id="inStockBtn" class="btn btn-tool"><span class="btn-text">✅ Mark As In Stock</span></button>
+            <button id="outStockBtn" class="btn btn-tool"><span class="btn-text">❌ Mark Out of Stock</span></button>
+            <button id="locationChangerBtn" class="btn btn-tool"><span class="btn-text">📍 Location Changer</span></button>
+            <button id="deleteDraftsBtn" class="btn btn-tool"><span class="btn-text">🗑 Delete Drafts</span></button>
+            <button id="deleteSoldBtn" class="btn btn-tool"><span class="btn-text">🗑 Delete Sold</span></button>
+          </div>
+          <div class="bottom-actions">
+            <button id="deleteAdsBtn" class="btn btn-danger"><span class="btn-text">🗑 Delete Ads</span></button>
+            <button id="clearHistoryBtn" class="btn btn-danger"><span class="btn-text">🧹 Clear History</span></button>
+          </div>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <div id="saveModal" class="modal hidden" role="dialog" aria-modal="true" aria-hidden="true">
+    <div class="modal-backdrop" id="saveBackdrop"></div>
+    <div class="modal-card glass-card">
+      <div class="modal-header"><div class="modal-title" id="saveTitle">Notification</div><button id="saveClose" class="icon-btn" aria-label="Close">✕</button></div>
+      <div class="modal-body"><div class="modal-msg" id="saveMsg"></div></div>
+      <div class="modal-actions single"><button id="saveOk" class="btn btn-primary"><span class="btn-text">OK</span></button></div>
+    </div>
+  </div>
+
+  <div id="lcModal" class="modal hidden" role="dialog" aria-modal="true" aria-hidden="true">
+    <div class="modal-backdrop" id="lcBackdrop"></div>
+    <div class="modal-card glass-card">
+      <div class="modal-header"><div class="modal-title">Location Changer</div><button id="lcClose" class="icon-btn" aria-label="Close">✕</button></div>
+      <div class="modal-body"><label for="lcCity">City</label><input id="lcCity" type="text" value="Reno, Nevada" placeholder="e.g. Reno, Nevada" /></div>
+      <div class="modal-actions"><button id="lcCancel" class="btn btn-tool"><span class="btn-text">Cancel</span></button><button id="lcStart" class="btn btn-primary"><span class="btn-text">Start</span></button></div>
+    </div>
+  </div>
+
+  <div id="daModal" class="modal hidden" role="dialog" aria-modal="true" aria-hidden="true">
+    <div class="modal-backdrop" id="daBackdrop"></div>
+    <div class="modal-card glass-card">
+      <div class="modal-header"><div class="modal-title" id="daTitle">Delete</div><button id="daClose" class="icon-btn" aria-label="Close">✕</button></div>
+      <div class="modal-body"><div class="modal-msg" id="daMsg">Are you sure?</div></div>
+      <div class="modal-actions"><button id="daCancel" class="btn btn-tool"><span class="btn-text">Cancel</span></button><button id="daYes" class="btn btn-danger"><span class="btn-text">Yes</span></button></div>
+    </div>
+  </div>
+
+  <div id="chModal" class="modal hidden" role="dialog" aria-modal="true" aria-hidden="true">
+    <div class="modal-backdrop" id="chBackdrop"></div>
+    <div class="modal-card glass-card">
+      <div class="modal-header"><div class="modal-title">Clear History</div><button id="chClose" class="icon-btn" aria-label="Close">✕</button></div>
+      <div class="modal-body"><div class="modal-msg">Are you sure you want to clear history</div></div>
+      <div class="modal-actions"><button id="chCancel" class="btn btn-tool"><span class="btn-text">Cancel</span></button><button id="chYes" class="btn btn-danger"><span class="btn-text">Yes</span></button></div>
+    </div>
+  </div>
+  <script src="popup.js"></script>
+</body>
+</html>

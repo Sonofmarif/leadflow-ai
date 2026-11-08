@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Shared FB Autofill</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="bg-orb orb-1"></div>
+  <div class="bg-orb orb-2"></div>
+
+  <div class="app-shell">
+    <div class="single-layout">
+      <section class="panel">
+        <div class="card glass-card">
+
+          <input type="text" id="title" placeholder="Enter title" aria-label="Title" />
+
+          <input type="number" id="price" placeholder="Enter price" aria-label="Price" />
+
+          <div class="fb-select-wrap">
+            <select id="category" class="fb-select is-placeholder" aria-label="Category">
+              <option value="" selected disabled>Category</option>
+              <option value="auto_parts">Auto Parts</option>
+              <option value="furniture">Furniture</option>
+              <option value="household">Household</option>
+              <option value="appliances">Appliances (HVAC / Repair)</option>
+              <option value="tools">Tools (Plumbing / Electrical)</option>
+            </select>
+          </div>
+
+          <div class="fb-select-wrap">
+            <select id="condition" class="fb-select is-placeholder" aria-label="Condition">
+              <option value="" selected disabled>Condition</option>
+              <option value="new">New</option>
+              <option value="used_like_new">Used - Like New</option>
+              <option value="used_good">Used - Good</option>
+              <option value="used_fair">Used - Fair</option>
+            </select>
+          </div>
+
+          <div class="availability-select-wrap">
+            <span class="availability-corner-label" aria-hidden="true">Availability</span>
+            <select id="availabilityMode" aria-label="Availability">
+              <option value="default" selected>Default</option>
+              <option value="in_stock">List as In Stock</option>
+            </select>
+          </div>
+
+          <textarea id="description" placeholder="Enter description" aria-label="Description"></textarea>
+
+          <div class="fileRow">
+            <input type="file" id="imageInput" accept="image/*" hidden />
+
+            <button type="button" id="pickFilesBtn" class="btn btn-danger fileBtn">
+              <span class="btn-text">Choose Image</span>
+            </button>
+
+            <div id="fileName" class="fileName">No files chosen</div>
+          </div>
+
+          <div class="image-mode-row" aria-label="Image mode">
+            <span id="singleModeLabel" class="image-mode-label active">Single Image</span>
+            <label class="image-mode-switch" title="Switch between single and multiple different images">
+              <input type="checkbox" id="imageModeToggle" aria-label="Multiple different images" />
+              <span class="image-mode-slider" aria-hidden="true"></span>
+            </label>
+            <span id="multipleModeLabel" class="image-mode-label">Multiple Different Images</span>
+          </div>
+
+          <div class="button-group two-col-save">
+            <button id="aiWriteBtn" class="btn btn-ai" type="button">
+              <span class="btn-text">✨ AI Write</span>
+            </button>
+            <button id="saveData" class="btn btn-tool" type="button">
+              <span class="btn-text">💾 Save Data</span>
+            </button>
+          </div>
+
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

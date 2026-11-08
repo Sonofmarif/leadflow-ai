@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>LeadFlow AI — Marketplace Suite</title>
+  <link rel="stylesheet" href="popup.css" />
+</head>
+<body>
+  <main class="merge-shell">
+    <nav class="tool-switch-holder" aria-label="Tool selector">
+      <div class="tool-switch" role="tablist">
+        <button id="switch-af" class="tool-choice active" type="button" role="tab" aria-selected="true" data-tool="af">AUTOFILL</button>
+        <button id="switch-mm" class="tool-choice" type="button" role="tab" aria-selected="false" data-tool="mm">MULTIPLE</button>
+        <button id="switch-automation" class="tool-choice" type="button" role="tab" aria-selected="false" data-tool="automation">AUTOMATION</button>
+        <button id="switch-ai" class="tool-choice ai-tab-btn" type="button" role="tab" aria-selected="false" data-tool="ai">⚡ AI & CONFIG</button>
+      </div>
+    </nav>
+
+    <div class="developer-credit">
+      <div class="developer-credit-text">LEADFLOW AI • ANTI-DETECT ENGINE v2.0</div>
+      <div class="developer-neon-line" aria-hidden="true">
+        <span class="neon-runner neon-runner-a"></span>
+      </div>
+    </div>
+
+    <section class="tabs-content">
+      <div id="wrapper-af" class="frame-wrapper" role="tabpanel">
+        <iframe id="afFrame" title="Autofill Tool" data-src="shared/af/popup.html"></iframe>
+      </div>
+      <div id="wrapper-mm" class="frame-wrapper hidden" role="tabpanel">
+        <iframe id="mmFrame" title="Multiple Buttons Tool" data-src="shared/mm/popup.html"></iframe>
+      </div>
+      <div id="wrapper-automation" class="frame-wrapper hidden" role="tabpanel">
+        <iframe id="automationFrame" title="Automation Tool" data-src="shared/automation/popup.html"></iframe>
+      </div>
+      <div id="wrapper-ai" class="frame-wrapper hidden ai-settings-scroll" role="tabpanel">
+        <div class="ai-panel">
+          <div class="ai-card">
+            <div class="ai-card-header">
+              <span class="ai-title">🧠 Universal AI Key (BYOK)</span>
+              <span id="aiDetectedBadge" class="ai-badge">No Key</span>
+            </div>
+            <p class="ai-subtext">Paste Gemini, Groq, OpenAI, OpenRouter, or NVIDIA key. Auto-detected instantly.</p>
+            <input id="aiApiKey" type="password" class="ai-input" placeholder="Paste API Key (AIza..., gsk_..., sk-or-..., sk-...)" />
+            <div class="ai-grid-2">
+              <div>
+                <label class="ai-label" for="aiProvider">Provider</label>
+                <select id="aiProvider" class="ai-select">
+                  <option value="auto">✨ Auto-Detect</option>
+                  <option value="gemini">Google Gemini (Free)</option>
+                  <option value="groq">Groq (Free / Ultra Fast)</option>
+                  <option value="openrouter">OpenRouter</option>
+                  <option value="openai">OpenAI (GPT-4o mini)</option>
+                  <option value="nvidia">NVIDIA NIM</option>
+                </select>
+              </div>
+              <div>
+                <label class="ai-label" for="aiModel">Model (Optional)</label>
+                <input id="aiModel" type="text" class="ai-input" placeholder="Auto default" />
+              </div>
+            </div>
+            <label class="ai-label" for="aiServiceNiche">Service Niche / Lead Category (USA)</label>
+            <input id="aiServiceNiche" type="text" class="ai-input" placeholder="e.g. Emergency Plumber, HVAC Repair, Appliance Repair" />
+            <div class="ai-toggle-row">
+              <span>Enable AI Unique Title/Desc Per Tab</span>
+              <input id="aiUniquePerTab" type="checkbox" class="ai-checkbox" checked />
+            </div>
+            <div class="ai-toggle-row">
+              <span>Activate AI Engine</span>
+              <input id="aiEnabled" type="checkbox" class="ai-checkbox" />
+            </div>
+          </div>
+          <div class="ai-card">
+            <div class="ai-card-header">
+              <span class="ai-title">🛡️ Anti-Ban & Human Speed</span>
+            </div>
+            <label class="ai-label" for="humanModeSelect">Execution Speed Profile</label>
+            <select id="humanModeSelect" class="ai-select">
+              <option value="safe">🛡️ Safe Human Mode (Recommended - Anti-Ban)</option>
+              <option value="balanced">⚖️ Balanced Mode (Medium Random Delays)</option>
+              <option value="turbo">⚡ Turbo Mode (Fast - Higher Risk)</option>
+            </select>
+            <label class="ai-label" for="telemetryWebhookUrl">Cloudflare Error Webhook URL (Optional)</label>
+            <input id="telemetryWebhookUrl" type="url" class="ai-input" placeholder="https://your-worker.workers.dev/report" />
+          </div>
+          <div class="ai-actions">
+            <button id="testAiBtn" type="button" class="ai-btn ai-btn-secondary">🧪 Test AI Key</button>
+            <button id="saveAiConfigBtn" type="button" class="ai-btn ai-btn-primary">💾 Save Settings</button>
+          </div>
+          <div id="aiStatusMsg" class="ai-status"></div>
+        </div>
+      </div>
+    </section>
+  </main>
+  <script src="popup.js"></script>
+</body>
+</html>

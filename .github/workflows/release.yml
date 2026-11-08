@@ -1,0 +1,84 @@
+name: 🚀 LeadFlow AI — Release & Package
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    name: Package Extension & Publish Release
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 📥 Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: 🔖 Get Version from manifest.json
+        id: version
+        run: |
+          VERSION=$(cat manifest.json | python3 -c "import sys,json; print(json.load(sys.stdin)['version'])")
+          echo "version=v${VERSION}" >> $GITHUB_OUTPUT
+          echo "📦 Building LeadFlow AI $VERSION"
+
+      - name: 🗜️ Package Extension into ZIP
+        run: |
+          # Exclude dev/CI-only files from the extension package
+          zip -r leadflow-ai-latest.zip . \
+            --exclude "*.git*" \
+            --exclude ".github/*" \
+            --exclude "LeadFlow_AI_v2.0/*" \
+            --exclude "cloudflare-worker/*" \
+            --exclude "*.md" \
+            --exclude "node_modules/*" \
+            --exclude "*.zip"
+          echo "✅ leadflow-ai-latest.zip created"
+          ls -lh leadflow-ai-latest.zip
+
+      - name: 📝 Generate Release Notes
+        id: release_notes
+        run: |
+          cat > RELEASE_NOTES.md << 'EOF'
+          ## 🚀 LeadFlow AI — Marketplace Automation Suite
+
+          ### ✅ What's New in v2.0
+          - **🛡️ Anti-Detect Engine** — `humanSleep()` jitter delays with Safe / Balanced / Turbo speed profiles replace all fixed `sleep()` calls. Facebook's bot velocity detector can no longer clock your automation pattern.
+          - **🔋 MV3 Service Worker Keep-Alive** — 20-second heartbeat prevents Chrome from terminating long multi-tab runs (critical for 10+ tab automation sessions).
+          - **🧠 Universal BYOK AI Key Auto-Detector** — Paste any API key (Gemini `AIza...`, Groq `gsk_...`, OpenRouter `sk-or-...`, NVIDIA `nvapi-...`, OpenAI `sk-...`) and the extension auto-detects the provider + correct model.
+          - **✨ AI Listing Generator** — Generates unique, high-converting US home-service titles & descriptions per tab (Plumbing, HVAC, Appliance Repair, Electrical) when AI engine is active.
+          - **⚡ AI & CONFIG Tab** — New 4th popup tab with API Key input, provider selector, niche config, speed profile, and Cloudflare webhook settings.
+          - **🖼️ Image Optimizer** — Canvas-based compressor resizes images to max 1600px @ 0.92 JPEG quality (80% smaller) + 1-pixel alpha jitter so FB's duplicate image hash detector sees each upload as unique.
+          - **🐛 Fixed: Hardcoded FB User ID Bug** — Delete Ads now navigates to `facebook.com/me/allactivity` (dynamic) instead of a hardcoded profile ID that only worked for the developer's account.
+          - **🐛 Fixed: Global Browser Wipe Bug** — Clear History now scopes `browsingData.remove` to Facebook origins only. Gmail, banking sessions, and all other browser data are **never** touched.
+          - **🏷️ New Categories** — `appliances` and `tools` added to Autofill category selector.
+          - **📡 Error Telemetry** — Configurable Cloudflare Worker webhook for runtime error monitoring.
+
+          ### 📦 Installation
+          1. Download `leadflow-ai-latest.zip`
+          2. Unzip to a local folder
+          3. Open `chrome://extensions` → Enable Developer Mode → Load Unpacked → select the folder
+          EOF
+          echo "Release notes generated"
+
+      - name: 🏷️ Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.version }}-${{ github.run_number }}
+          name: "LeadFlow AI ${{ steps.version.outputs.version }} — Anti-Detect Engine + Universal BYOK AI"
+          body_path: RELEASE_NOTES.md
+          files: leadflow-ai-latest.zip
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: ✅ Release Summary
+        run: |
+          echo "🎉 LeadFlow AI ${{ steps.version.outputs.version }} released!"
+          echo "📦 Package: leadflow-ai-latest.zip"
+          echo "🔗 GitHub Release created automatically"

@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Automation</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="bg-orb orb-1"></div>
+  <div class="bg-orb orb-2"></div>
+  <div class="app-shell">
+    <div class="single-layout">
+      <section class="panel">
+        <div class="card glass-card automation-card" style="border:1px solid rgba(124,77,255,.45);background:rgba(10,8,22,.8);">
+          <div class="location-header-row">
+            <label for="location" class="automation-title">📍 Target Location List (Per Line)</label>
+            <button id="saveLocationStorageBtn" class="btn location-storage-save-btn" type="button"><span class="btn-text">💾 Save Locations</span></button>
+          </div>
+          <textarea id="location" placeholder="Enter Locations" style="min-height:85px;font-family:monospace;font-size:12px;"></textarea>
+
+          <div class="automation-controls-grid">
+            <div class="tabs-mini-box automation-tabs-box">
+              <label for="masterTabCount">🔢 Tabs to Open</label>
+              <input id="masterTabCount" type="number" min="1" value="3" placeholder="3" />
+            </div>
+
+            <div class="automation-top-actions">
+              <button id="SaveLocation" class="btn btn-primary automation-save-btn" type="button"><span class="btn-text">📍 Apply Locations</span></button>
+              <button id="stopMasterAutomationBtn" class="btn automation-stop-btn"><span class="btn-text">🛑 STOP</span></button>
+            </div>
+
+            <button id="openListing" class="btn btn-tool automation-open-btn" type="button"><span class="btn-text">📂 Open Listing</span></button>
+            <button id="startMasterAutomationBtn" class="btn automation-start-btn"><span class="btn-text">🔥 START AUTOMATION</span></button>
+          </div>
+
+          <div id="customRunRoot" class="custom-run-card" aria-label="Custom Run stage selector">
+            <button id="customRunToggle" class="custom-run-toggle" type="button" aria-expanded="false">
+              <span class="custom-run-title">⚙ CUSTOM RUN</span>
+              <span id="customRunState" class="custom-run-state">OFF</span>
+            </button>
+            <div id="customRunPanel" class="custom-run-panel hidden">
+              <div class="custom-run-grid">
+                <label class="custom-run-check"><input class="custom-step-check" type="checkbox" data-step="autofill" /><span>Autofill</span></label>
+                <label class="custom-run-check"><input class="custom-step-check" type="checkbox" data-step="saveDraft" /><span>Save Draft</span></label>
+                <label class="custom-run-check"><input class="custom-step-check" type="checkbox" data-step="draftOpener" /><span>Draft Opener</span></label>
+                <label class="custom-run-check"><input class="custom-step-check" type="checkbox" data-step="locations" /><span>Locations</span></label>
+                <label class="custom-run-check"><input class="custom-step-check" type="checkbox" data-step="publish" /><span>Publish</span></label>
+              </div>
+            </div>
+          </div>
+
+          <div id="automationStatusBox" class="automation-status-box">
+            Status: <span id="automationStatusText">Ready</span>
+          </div>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <div id="saveModal" class="modal hidden" role="dialog" aria-modal="true" aria-hidden="true">
+    <div class="modal-backdrop" id="saveBackdrop"></div>
+    <div class="modal-card glass-card">
+      <div class="modal-header"><div class="modal-title" id="saveTitle">Notification</div><button id="saveClose" class="icon-btn" aria-label="Close">✕</button></div>
+      <div class="modal-body"><div class="modal-msg" id="saveMsg"></div></div>
+      <div class="modal-actions single"><button id="saveOk" class="btn btn-primary"><span class="btn-text">OK</span></button></div>
+    </div>
+  </div>
+  <script src="popup.js"></script>
+</body>
+</html>
