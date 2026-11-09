@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>LeadFlow AI Autofill Engine</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="bg-orb orb-1"></div>
+  <div class="bg-orb orb-2"></div>
+
+  <div class="app-shell">
+    <div class="single-layout">
+      <section class="panel">
+        <div class="card glass-card">
+
+          <!-- Top Quick Actions Toolbar: Scraper + AI Write -->
+          <div class="quick-toolbar">
+            <button type="button" id="scrapeTabBtn" class="toolbar-btn toolbar-btn-scrape" title="Extract title, price, description, and all photos from active tab">
+              <span class="btn-icon">📥</span>
+              <span class="btn-text">Scrape Tab</span>
+            </button>
+            <button type="button" id="aiWriteBtn" class="toolbar-btn toolbar-btn-ai" title="AI generate or rewrite title & description">
+              <span class="btn-icon">✨</span>
+              <span class="btn-text">AI Write</span>
+            </button>
+            <button type="button" id="saveData" class="toolbar-btn toolbar-btn-save" title="Save listing data">
+              <span class="btn-icon">💾</span>
+              <span class="btn-text">Save</span>
+            </button>
+          </div>
+
+          <!-- Status Notification Banner -->
+          <div id="afStatusBanner" class="af-status-banner hidden">
+            <span id="afStatusText">Status message</span>
+          </div>
+
+          <!-- Title Field with Character Counter -->
+          <div class="field-wrap">
+            <div class="field-header">
+              <span class="field-label">Listing Title</span>
+              <span id="titleCounter" class="char-counter">0 / 65</span>
+            </div>
+            <input type="text" id="title" placeholder="e.g. 24/7 Emergency Plumber - Fast Drain Cleaning" aria-label="Title" maxlength="100" />
+          </div>
+
+          <!-- Price & Category Grid -->
+          <div class="two-col-grid">
+            <div class="field-wrap">
+              <input type="number" id="price" placeholder="Price ($)" aria-label="Price" />
+            </div>
+
+            <div class="fb-select-wrap">
+              <select id="category" class="fb-select is-placeholder" aria-label="Category">
+                <option value="" selected disabled>Category</option>
+                <option value="appliances">Appliances (HVAC / Repair)</option>
+                <option value="tools">Tools (Plumbing / Electrical)</option>
+                <option value="auto_parts">Auto Parts / Vehicles</option>
+                <option value="furniture">Furniture</option>
+                <option value="household">Household</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Condition & Availability Grid -->
+          <div class="two-col-grid">
+            <div class="fb-select-wrap">
+              <select id="condition" class="fb-select is-placeholder" aria-label="Condition">
+                <option value="" selected disabled>Condition</option>
+                <option value="new">New</option>
+                <option value="used_like_new">Used - Like New</option>
+                <option value="used_good">Used - Good</option>
+                <option value="used_fair">Used - Fair</option>
+              </select>
+            </div>
+
+            <div class="availability-select-wrap">
+              <select id="availabilityMode" aria-label="Availability">
+                <option value="default" selected>Default Stock</option>
+                <option value="in_stock">List as In Stock</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Description Field -->
+          <div class="field-wrap">
+            <textarea id="description" placeholder="Enter high-converting description or click ✨ AI Write to generate..." aria-label="Description" rows="4"></textarea>
+          </div>
+
+          <!-- Photo Upload & Mode Row -->
+          <div class="fileRow">
+            <input type="file" id="imageInput" accept="image/*" hidden />
+            <button type="button" id="pickFilesBtn" class="btn btn-danger fileBtn">
+              <span class="btn-text">Choose Photos</span>
+            </button>
+            <div id="fileName" class="fileName">No photos chosen</div>
+          </div>
+
+          <div class="image-mode-row" aria-label="Image mode">
+            <span id="singleModeLabel" class="image-mode-label active">Single Photo</span>
+            <label class="image-mode-switch" title="Rotate different photos across multiple tabs">
+              <input type="checkbox" id="imageModeToggle" aria-label="Multiple different images" />
+              <span class="image-mode-slider" aria-hidden="true"></span>
+            </label>
+            <span id="multipleModeLabel" class="image-mode-label">Rotate Photos</span>
+          </div>
+
+          <!-- Interactive Photo Preview Strip -->
+          <div id="photoPreviewSection" class="photo-preview-section hidden">
+            <div class="photo-preview-header">
+              <span id="photoPreviewCount" class="photo-count-badge">📸 0 Photos</span>
+              <button type="button" id="clearAllPhotosBtn" class="clear-photos-link">Clear All</button>
+            </div>
+            <div id="photoThumbnailStrip" class="photo-thumbnail-strip"></div>
+          </div>
+
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Facebook Automation Tool</title>
+  <link rel="stylesheet" href="popup.css" />
+</head>
+<body data-mode-key="__sharedToolMode">
+  <div class="app-container">
+    <div class="tool-switch-holder" aria-label="Tool selector">
+      <button id="toolSwitch" class="tool-toggle" type="button" role="switch" aria-checked="false" aria-label="Switch between Autofill and Multiple Buttons">
+        <span class="tool-track">
+          <span class="tool-text tool-text-af">AUTOFILL</span>
+          <span class="tool-text tool-text-mm">MULTIPLE</span>
+          <span class="tool-thumb" aria-hidden="true">
+            <span class="tool-dot"></span>
+          </span>
+        </span>
+      </button>
+    </div>
+
+    <div class="developer-credit" aria-label="Developer credit">
+      <div class="developer-credit-text">DEVELOPED BY AHSAN</div>
+      <div class="developer-neon-line" aria-hidden="true">
+        <span class="neon-runner neon-runner-a"></span>
+        <span class="neon-runner neon-runner-b"></span>
+      </div>
+    </div>
+
+    <div class="tabs-content">
+      <div id="wrapper-af" class="frame-wrapper">
+        <iframe id="afFrame" title="Autofill Tool" data-src="../shared/af/popup.html"></iframe>
+      </div>
+      <div id="wrapper-mm" class="frame-wrapper hidden">
+        <iframe id="mmFrame" title="Multiple Buttons Tool" data-src="../shared/mm/popup.html"></iframe>
+      </div>
+    </div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

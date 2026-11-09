@@ -120,8 +120,8 @@ const PROVIDER_METADATA = {
   gemini: {
     name: "Google Gemini",
     icon: "🤖",
-    defaultModel: "gemini-2.0-flash",
-    recommendedModels: ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-pro"],
+    defaultModel: "gemini-3.8-flash",
+    recommendedModels: ["gemini-3.8-flash", "gemini-2.5-flash", "gemini-1.5-flash", "gemini-1.5-pro"],
     badgeText: "Fast & Free Tier Available"
   },
   groq: {
@@ -234,7 +234,17 @@ async function fetchProviderModels(apiKey = "", forcedProvider = "auto") {
       models = rawList
         .filter(m => (m.supportedGenerationMethods || []).includes("generateContent"))
         .map(m => m.name.replace(/^models\//, ""))
-        .filter(id => !id.includes("embedding") && !id.includes("aqa"));
+        .filter(id => !id.includes("embedding") && !id.includes("aqa") && !id.includes("imagen") && id !== "gemini-2.0-flash");
+
+      const preferredOrder = ["gemini-3.8-flash", "gemini-2.5-flash", "gemini-1.5-flash", "gemini-1.5-pro"];
+      models.sort((a, b) => {
+        const ia = preferredOrder.indexOf(a);
+        const ib = preferredOrder.indexOf(b);
+        if (ia !== -1 && ib !== -1) return ia - ib;
+        if (ia !== -1) return -1;
+        if (ib !== -1) return 1;
+        return a.localeCompare(b);
+      });
     } else if (provider === "groq") {
       const res = await fetch("https://api.groq.com/openai/v1/models", {
         headers: { "Authorization": `Bearer ${key}` }
@@ -306,7 +316,7 @@ async function callAiApi({ apiKey, provider, model, prompt, systemPrompt }) {
   const prov = provider || "auto";
   const detected = detectAiProvider(apiKey, prov);
   const activeProvider = (prov !== "auto") ? prov : detected.provider;
-  const activeModel = model?.trim() || detected.defaultModel;
+  let activeModel = model?.trim() || detected.defaultModel;
   const key = (apiKey || "").trim();
 
   if (!key) throw new Error("API Key is missing. Paste your key in ⚡ AI & CONFIG tab.");
@@ -315,28 +325,70 @@ async function callAiApi({ apiKey, provider, model, prompt, systemPrompt }) {
   const tStart = Date.now();
 
   let rawText = "";
+  let modelUsed = activeModel;
 
   if (activeProvider === "gemini") {
-    // Correct Gemini endpoint
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(activeModel)}:generateContent?key=${encodeURIComponent(key)}`;
-    const res = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: `${sys}\n\n${prompt}` }] }],
-        generationConfig: {
-          responseMimeType: "application/json",
-          temperature: 0.85,
-          maxOutputTokens: 600
-        }
-      })
-    });
-    if (!res.ok) {
-      const errBody = await res.text();
-      let msg = `Gemini HTTP ${res.status}`;
-      try { msg += `: ${JSON.parse(errBody).error.message}`; } catch(e) { msg += `: ${errBody.slice(0, 150)}`; }
-      throw new Error(msg);
+    let targetModel = (activeModel || "gemini-3.8-flash").trim().replace(/^models\//, "");
+    if (!targetModel || targetModel === "gemini-2.0-flash" || targetModel.includes("2.0-flash")) {
+      targetModel = "gemini-3.8-flash";
     }
+
+    const executeGemini = async (m) => {
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(m)}:generateContent?key=${encodeURIComponent(key)}`;
+      return await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: `${sys}\n\n${prompt}` }] }],
+          generationConfig: {
+            responseMimeType: "application/json",
+            temperature: 0.85,
+            maxOutputTokens: 600
+          }
+        })
+      });
+    };
+
+    let res = await executeGemini(targetModel);
+
+    // Self-healing: if 404 or decommissioned, parse suggested model or fallback
+    if (!res.ok) {
+      const errText = await res.text();
+      let retryModel = null;
+
+      // Extract model suggestion from error (e.g., "Please update your code to use models/gemini-3.8-flash")
+      const match = errText.match(/models\/(gemini-[\w.-]+)/i);
+      if (match && match[1] && match[1] !== targetModel) {
+        retryModel = match[1];
+      } else if (res.status === 404) {
+        const fallbacks = ["gemini-3.8-flash", "gemini-2.5-flash", "gemini-1.5-flash", "gemini-1.5-pro"];
+        retryModel = fallbacks.find(f => f !== targetModel) || "gemini-1.5-flash";
+      }
+
+      if (retryModel) {
+        console.warn(`[LeadFlow AI] Auto-healing Gemini model: ${targetModel} -> ${retryModel}`);
+        targetModel = retryModel;
+        res = await executeGemini(targetModel);
+      }
+
+      if (!res.ok) {
+        const finalErr = await res.text();
+        let msg = `Gemini HTTP ${res.status}`;
+        try { msg += `: ${JSON.parse(finalErr).error.message}`; } catch(e) { msg += `: ${finalErr.slice(0, 150)}`; }
+        throw new Error(msg);
+      }
+    }
+
+    modelUsed = targetModel;
+    // Persist healed model to storage if it changed
+    try {
+      const { aiConfig } = await chrome.storage.local.get("aiConfig");
+      if (aiConfig && aiConfig.model !== modelUsed) {
+        aiConfig.model = modelUsed;
+        await chrome.storage.local.set({ aiConfig });
+      }
+    } catch(e) {}
+
     const data = await res.json();
     rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text || "";
   } else if (activeProvider === "anthropic") {
@@ -362,6 +414,7 @@ async function callAiApi({ apiKey, provider, model, prompt, systemPrompt }) {
     }
     const data = await res.json();
     rawText = data?.content?.[0]?.text || "";
+    modelUsed = activeModel;
   } else {
     // OpenAI-compatible endpoints (Groq, OpenAI, OpenRouter, DeepSeek, NVIDIA)
     const endpoints = {
@@ -405,6 +458,7 @@ async function callAiApi({ apiKey, provider, model, prompt, systemPrompt }) {
 
     const data = await res.json();
     rawText = data?.choices?.[0]?.message?.content || "";
+    modelUsed = activeModel;
   }
 
   const latencyMs = Date.now() - tStart;
@@ -416,7 +470,7 @@ async function callAiApi({ apiKey, provider, model, prompt, systemPrompt }) {
         return {
           title: String(parsed.title).trim(),
           description: String(parsed.description).trim(),
-          modelUsed: activeModel,
+          modelUsed,
           provider: activeProvider,
           latencyMs,
           aiUsed: true
@@ -433,7 +487,7 @@ async function callAiApi({ apiKey, provider, model, prompt, systemPrompt }) {
   return {
     title: fallbackTitle.slice(0, 95),
     description: fallbackDesc,
-    modelUsed: activeModel,
+    modelUsed,
     provider: activeProvider,
     latencyMs,
     aiUsed: true
