@@ -168,58 +168,81 @@ const PROVIDER_METADATA = {
   }
 };
 
+function sanitizeApiKey(rawKey = "") {
+  let k = String(rawKey || "").trim();
+  // Strip wrapping quotes (double, single, smart quotes, backticks)
+  k = k.replace(/^["'`“”‘’\s]+|["'`“”‘’\s]+$/g, "");
+  // Strip "Bearer " prefix if user accidentally included it
+  k = k.replace(/^Bearer\s+/i, "");
+  // Strip any env var style prefixes like "GEMINI_API_KEY=", "API_KEY=", "key:", etc.
+  k = k.replace(/^[A-Za-z0-9_-]+[:=]\s*/, "");
+  return k.trim();
+}
+
 function detectAiProvider(apiKey = "", forcedProvider = "auto") {
-  const key = String(apiKey || "").trim();
-  if (forcedProvider && forcedProvider !== "auto" && PROVIDER_METADATA[forcedProvider]) {
-    const meta = PROVIDER_METADATA[forcedProvider];
-    return {
-      provider: forcedProvider,
-      name: meta.name,
-      icon: meta.icon,
-      defaultModel: meta.defaultModel,
-      recommendedModels: meta.recommendedModels,
-      badgeText: meta.badgeText
-    };
-  }
+  const key = sanitizeApiKey(apiKey);
 
   if (!key) return { provider: "none", name: "No Key", icon: "⚪", defaultModel: "", recommendedModels: [] };
 
-  if (key.startsWith("AIza")) {
-    return { provider: "gemini", ...PROVIDER_METADATA.gemini };
-  }
-  if (key.startsWith("gsk_")) {
-    return { provider: "groq", ...PROVIDER_METADATA.groq };
-  }
-  if (key.startsWith("sk-ant-")) {
-    return { provider: "anthropic", ...PROVIDER_METADATA.anthropic };
-  }
-  if (key.startsWith("sk-or-")) {
-    return { provider: "openrouter", ...PROVIDER_METADATA.openrouter };
-  }
-  if (key.startsWith("nvapi-")) {
-    return { provider: "nvidia", ...PROVIDER_METADATA.nvidia };
-  }
-  if (key.startsWith("sk-proj-") || key.startsWith("sk-admin-")) {
-    return { provider: "openai", ...PROVIDER_METADATA.openai };
-  }
-  if (key.startsWith("sk-")) {
-    return { provider: "openai", ...PROVIDER_METADATA.openai };
+  // 1. Signature analysis from key itself
+  let detectedProvider = null;
+  if (key.startsWith("AIza") || key.includes("AIzaSy")) {
+    detectedProvider = "gemini";
+  } else if (key.startsWith("gsk_")) {
+    detectedProvider = "groq";
+  } else if (key.startsWith("sk-ant-")) {
+    detectedProvider = "anthropic";
+  } else if (key.startsWith("sk-or-")) {
+    detectedProvider = "openrouter";
+  } else if (key.startsWith("nvapi-")) {
+    detectedProvider = "nvidia";
+  } else if (key.startsWith("sk-proj-") || key.startsWith("sk-admin-")) {
+    detectedProvider = "openai";
+  } else if (key.startsWith("sk-")) {
+    detectedProvider = "openai";
+  } else if (/^[A-Za-z0-9_-]{35,45}$/.test(key)) {
+    // 39-character alphanumeric keys are standard Google AI Studio Gemini keys
+    detectedProvider = "gemini";
+  } else {
+    // Default safe fallback is Google Gemini (free tier)
+    detectedProvider = "gemini";
   }
 
-  return { provider: "openrouter", ...PROVIDER_METADATA.openrouter };
+  // 2. Resolve user choice vs detected signature (prevent fatal mismatches)
+  let finalProvider = detectedProvider;
+  if (forcedProvider && forcedProvider !== "auto" && PROVIDER_METADATA[forcedProvider]) {
+    const isBlatantMismatch =
+      (forcedProvider === "openrouter" && (key.startsWith("AIza") || key.includes("AIzaSy"))) ||
+      (forcedProvider === "gemini" && key.startsWith("sk-or-")) ||
+      (forcedProvider === "gemini" && key.startsWith("gsk_"));
+
+    if (!isBlatantMismatch) {
+      finalProvider = forcedProvider;
+    }
+  }
+
+  const meta = PROVIDER_METADATA[finalProvider] || PROVIDER_METADATA.gemini;
+  return {
+    provider: finalProvider,
+    name: meta.name,
+    icon: meta.icon,
+    defaultModel: meta.defaultModel,
+    recommendedModels: meta.recommendedModels,
+    badgeText: meta.badgeText
+  };
 }
 
 // Live Model Fetcher: Queries provider's official /models API
 async function fetchProviderModels(apiKey = "", forcedProvider = "auto") {
-  const detected = detectAiProvider(apiKey, forcedProvider);
+  const key = sanitizeApiKey(apiKey);
+  const detected = detectAiProvider(key, forcedProvider);
   const provider = (forcedProvider && forcedProvider !== "auto") ? forcedProvider : detected.provider;
-  const key = apiKey.trim();
 
   if (!key || provider === "none") {
     return { ok: false, error: "Please enter an API key to fetch models." };
   }
 
-  const meta = PROVIDER_METADATA[provider] || PROVIDER_METADATA.openrouter;
+  const meta = PROVIDER_METADATA[provider] || PROVIDER_METADATA.gemini;
   const tStart = Date.now();
 
   try {
@@ -313,13 +336,13 @@ async function fetchProviderModels(apiKey = "", forcedProvider = "auto") {
 
 // Universal AI Caller for variations and direct copywriting
 async function callAiApi({ apiKey, provider, model, prompt, systemPrompt }) {
-  const prov = provider || "auto";
-  const detected = detectAiProvider(apiKey, prov);
-  const activeProvider = (prov !== "auto") ? prov : detected.provider;
-  let activeModel = model?.trim() || detected.defaultModel;
-  const key = (apiKey || "").trim();
+  const key = sanitizeApiKey(apiKey);
+  if (!key) throw new Error("API Key is missing or invalid. Paste your key in ⚡ AI & CONFIG tab.");
 
-  if (!key) throw new Error("API Key is missing. Paste your key in ⚡ AI & CONFIG tab.");
+  const prov = provider || "auto";
+  const detected = detectAiProvider(key, prov);
+  const activeProvider = detected.provider;
+  let activeModel = model?.trim() || detected.defaultModel;
 
   const sys = systemPrompt || "You are an expert US local home-services copywriter for Facebook Marketplace.";
   const tStart = Date.now();

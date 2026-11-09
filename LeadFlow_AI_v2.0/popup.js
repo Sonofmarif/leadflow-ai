@@ -212,9 +212,23 @@ function initAiSettingsPanel() {
     return "";
   }
 
+  function sanitizeApiKeyInput(rawKey = "") {
+    let k = String(rawKey || "").trim();
+    k = k.replace(/^["'`“”‘’\s]+|["'`“”‘’\s]+$/g, "");
+    k = k.replace(/^Bearer\s+/i, "");
+    k = k.replace(/^[A-Za-z0-9_-]+[:=]\s*/, "");
+    return k.trim();
+  }
+
   // Key Auto-Detection on Keystroke / Paste
   function handleKeyChange() {
-    const key = apiKeyEl?.value?.trim() || "";
+    const rawKey = apiKeyEl?.value || "";
+    const cleanKey = sanitizeApiKeyInput(rawKey);
+    if (rawKey && rawKey !== cleanKey && apiKeyEl) {
+      apiKeyEl.value = cleanKey;
+    }
+
+    const key = cleanKey;
     const prov = providerEl?.value || "auto";
 
     chrome.runtime.sendMessage({
@@ -232,12 +246,13 @@ function initAiSettingsPanel() {
       badgeEl.className = "ai-badge active";
       badgeEl.textContent = `${res.icon} ${res.name}`;
 
-      // Auto-set provider dropdown if user hasn't locked it to a specific provider
-      if (providerEl && providerEl.value === "auto" && res.provider !== "auto") {
-        // keep provider dropdown on auto or update
+      if (res.provider && res.provider !== "auto" && res.provider !== "none") {
+        if (providerEl && providerEl.value === "auto") {
+          providerEl.value = res.provider;
+        }
       }
 
-      fetchLiveModels(key, prov, getSelectedModel());
+      fetchLiveModels(key, res.provider || prov, getSelectedModel());
     });
   }
 
@@ -272,8 +287,9 @@ function initAiSettingsPanel() {
   // Save Settings
   function saveConfig(cb) {
     const model = getSelectedModel();
+    const cleanKey = sanitizeApiKeyInput(apiKeyEl?.value || "");
     const aiConfig = {
-      apiKey: apiKeyEl?.value.trim() || "",
+      apiKey: cleanKey,
       provider: providerEl?.value || "auto",
       model,
       serviceNiche: nicheEl?.value.trim() || "Emergency Plumber",
@@ -301,7 +317,7 @@ function initAiSettingsPanel() {
 
   // 🧪 Diagnostic Test AI Key Connection
   testBtn?.addEventListener("click", () => {
-    const apiKey = apiKeyEl?.value.trim() || "";
+    const apiKey = sanitizeApiKeyInput(apiKeyEl?.value || "");
     if (!apiKey) {
       if (statusEl) {
         statusEl.style.color = "#f87171";
