@@ -120,8 +120,8 @@ const PROVIDER_METADATA = {
   gemini: {
     name: "Google Gemini",
     icon: "🤖",
-    defaultModel: "gemini-3.8-flash",
-    recommendedModels: ["gemini-3.8-flash", "gemini-2.5-flash", "gemini-1.5-flash", "gemini-1.5-pro"],
+    defaultModel: "gemini-1.5-flash",
+    recommendedModels: ["gemini-1.5-flash", "gemini-1.5-pro", "gemini-2.0-flash-exp"],
     badgeText: "Fast & Free Tier Available"
   },
   groq: {
@@ -259,7 +259,7 @@ async function fetchProviderModels(apiKey = "", forcedProvider = "auto") {
         .map(m => m.name.replace(/^models\//, ""))
         .filter(id => !id.includes("embedding") && !id.includes("aqa") && !id.includes("imagen") && id !== "gemini-2.0-flash");
 
-      const preferredOrder = ["gemini-3.8-flash", "gemini-2.5-flash", "gemini-1.5-flash", "gemini-1.5-pro"];
+      const preferredOrder = ["gemini-1.5-flash", "gemini-1.5-pro", "gemini-2.0-flash-exp", "gemini-1.5-flash-8b"];
       models.sort((a, b) => {
         const ia = preferredOrder.indexOf(a);
         const ib = preferredOrder.indexOf(b);
@@ -351,59 +351,81 @@ async function callAiApi({ apiKey, provider, model, prompt, systemPrompt }) {
   let modelUsed = activeModel;
 
   if (activeProvider === "gemini") {
-    let targetModel = (activeModel || "gemini-3.8-flash").trim().replace(/^models\//, "");
-    if (!targetModel || targetModel === "gemini-2.0-flash" || targetModel.includes("2.0-flash")) {
-      targetModel = "gemini-3.8-flash";
+    let initialTarget = (activeModel || "gemini-1.5-flash").trim().replace(/^models\//, "");
+    if (!initialTarget || initialTarget.includes("gemini-2.0-flash") || initialTarget.includes("gemini-3.8")) {
+      initialTarget = "gemini-1.5-flash";
     }
 
-    const executeGemini = async (m) => {
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(m)}:generateContent?key=${encodeURIComponent(key)}`;
-      return await fetch(url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: `${sys}\n\n${prompt}` }] }],
-          generationConfig: {
-            responseMimeType: "application/json",
-            temperature: 0.85,
-            maxOutputTokens: 600
+    const candidateModels = [
+      initialTarget,
+      "gemini-1.5-flash",
+      "gemini-1.5-pro",
+      "gemini-2.0-flash-exp",
+      "gemini-1.5-flash-8b"
+    ];
+
+    let successData = null;
+    let lastErrorMsg = "";
+
+    for (let i = 0; i < candidateModels.length; i++) {
+      const currentModel = candidateModels[i];
+      if (i > 0 && currentModel === candidateModels[0]) continue;
+
+      try {
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(currentModel)}:generateContent?key=${encodeURIComponent(key)}`;
+        const res = await fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: `${sys}\n\n${prompt}` }] }],
+            generationConfig: {
+              responseMimeType: "application/json",
+              temperature: 0.85,
+              maxOutputTokens: 600
+            }
+          })
+        });
+
+        // Read body stream EXACTLY ONCE
+        const bodyText = await res.text();
+
+        if (res.ok) {
+          try {
+            successData = JSON.parse(bodyText);
+            modelUsed = currentModel;
+            rawText = successData?.candidates?.[0]?.content?.parts?.[0]?.text || "";
+            break; // SUCCESS!
+          } catch (e) {
+            rawText = bodyText;
+            modelUsed = currentModel;
+            break;
           }
-        })
-      });
-    };
+        } else {
+          let errDetail = `Gemini HTTP ${res.status}`;
+          try {
+            const parsed = JSON.parse(bodyText);
+            if (parsed?.error?.message) errDetail += `: ${parsed.error.message}`;
+          } catch (e) {
+            errDetail += `: ${bodyText.slice(0, 160)}`;
+          }
+          lastErrorMsg = errDetail;
 
-    let res = await executeGemini(targetModel);
-
-    // Self-healing: if 404 or decommissioned, parse suggested model or fallback
-    if (!res.ok) {
-      const errText = await res.text();
-      let retryModel = null;
-
-      // Extract model suggestion from error (e.g., "Please update your code to use models/gemini-3.8-flash")
-      const match = errText.match(/models\/(gemini-[\w.-]+)/i);
-      if (match && match[1] && match[1] !== targetModel) {
-        retryModel = match[1];
-      } else if (res.status === 404) {
-        const fallbacks = ["gemini-3.8-flash", "gemini-2.5-flash", "gemini-1.5-flash", "gemini-1.5-pro"];
-        retryModel = fallbacks.find(f => f !== targetModel) || "gemini-1.5-flash";
-      }
-
-      if (retryModel) {
-        console.warn(`[LeadFlow AI] Auto-healing Gemini model: ${targetModel} -> ${retryModel}`);
-        targetModel = retryModel;
-        res = await executeGemini(targetModel);
-      }
-
-      if (!res.ok) {
-        const finalErr = await res.text();
-        let msg = `Gemini HTTP ${res.status}`;
-        try { msg += `: ${JSON.parse(finalErr).error.message}`; } catch(e) { msg += `: ${finalErr.slice(0, 150)}`; }
-        throw new Error(msg);
+          // Check if error suggests a specific model
+          const suggested = bodyText.match(/models\/(gemini-[\w.-]+)/i);
+          if (suggested && suggested[1] && !candidateModels.includes(suggested[1])) {
+            candidateModels.push(suggested[1]);
+          }
+        }
+      } catch (networkErr) {
+        lastErrorMsg = networkErr.message || String(networkErr);
       }
     }
 
-    modelUsed = targetModel;
-    // Persist healed model to storage if it changed
+    if (!rawText && !successData) {
+      throw new Error(lastErrorMsg || "Failed to connect to Google Gemini API.");
+    }
+
+    // Persist verified model to storage
     try {
       const { aiConfig } = await chrome.storage.local.get("aiConfig");
       if (aiConfig && aiConfig.model !== modelUsed) {
@@ -411,9 +433,6 @@ async function callAiApi({ apiKey, provider, model, prompt, systemPrompt }) {
         await chrome.storage.local.set({ aiConfig });
       }
     } catch(e) {}
-
-    const data = await res.json();
-    rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text || "";
   } else if (activeProvider === "anthropic") {
     const res = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
@@ -431,11 +450,11 @@ async function callAiApi({ apiKey, provider, model, prompt, systemPrompt }) {
         temperature: 0.85
       })
     });
+    const bodyText = await res.text();
     if (!res.ok) {
-      const errBody = await res.text();
-      throw new Error(`Anthropic error (${res.status}): ${errBody.slice(0, 150)}`);
+      throw new Error(`Anthropic error (${res.status}): ${bodyText.slice(0, 150)}`);
     }
-    const data = await res.json();
+    const data = JSON.parse(bodyText);
     rawText = data?.content?.[0]?.text || "";
     modelUsed = activeModel;
   } else {
@@ -472,14 +491,14 @@ async function callAiApi({ apiKey, provider, model, prompt, systemPrompt }) {
       })
     });
 
+    const bodyText = await res.text();
     if (!res.ok) {
-      const errBody = await res.text();
       let msg = `${detected.name} error (${res.status})`;
-      try { msg += `: ${JSON.parse(errBody).error.message}`; } catch(e) { msg += `: ${errBody.slice(0, 150)}`; }
+      try { msg += `: ${JSON.parse(bodyText).error.message}`; } catch(e) { msg += `: ${bodyText.slice(0, 150)}`; }
       throw new Error(msg);
     }
 
-    const data = await res.json();
+    const data = JSON.parse(bodyText);
     rawText = data?.choices?.[0]?.message?.content || "";
     modelUsed = activeModel;
   }
