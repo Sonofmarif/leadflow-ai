@@ -249,23 +249,28 @@ async function fetchProviderModels(apiKey = "", forcedProvider = "auto") {
     let models = [];
 
     if (provider === "gemini") {
-      const url = `https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(key)}`;
-      const res = await fetch(url);
-      if (!res.ok) throw new Error(`Gemini API error (${res.status}): ${await res.text()}`);
-      const data = await res.json();
+      let res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(key)}`);
+      if (!res.ok) {
+        res = await fetch(`https://generativelanguage.googleapis.com/v1/models?key=${encodeURIComponent(key)}`);
+      }
+      const bodyText = await res.text();
+      if (!res.ok) {
+        let msg = `Gemini API error (${res.status})`;
+        try { msg += `: ${JSON.parse(bodyText).error.message}`; } catch(e) { msg += `: ${bodyText.slice(0, 150)}`; }
+        throw new Error(msg);
+      }
+      const data = JSON.parse(bodyText);
       const rawList = Array.isArray(data?.models) ? data.models : [];
       models = rawList
         .filter(m => (m.supportedGenerationMethods || []).includes("generateContent"))
         .map(m => m.name.replace(/^models\//, ""))
         .filter(id => !id.includes("embedding") && !id.includes("aqa") && !id.includes("imagen") && id !== "gemini-2.0-flash");
 
-      const preferredOrder = ["gemini-1.5-flash", "gemini-1.5-pro", "gemini-2.0-flash-exp", "gemini-1.5-flash-8b"];
       models.sort((a, b) => {
-        const ia = preferredOrder.indexOf(a);
-        const ib = preferredOrder.indexOf(b);
-        if (ia !== -1 && ib !== -1) return ia - ib;
-        if (ia !== -1) return -1;
-        if (ib !== -1) return 1;
+        const aFlash = a.includes("flash");
+        const bFlash = b.includes("flash");
+        if (aFlash && !bFlash) return -1;
+        if (!aFlash && bFlash) return 1;
         return a.localeCompare(b);
       });
     } else if (provider === "groq") {
@@ -351,81 +356,108 @@ async function callAiApi({ apiKey, provider, model, prompt, systemPrompt }) {
   let modelUsed = activeModel;
 
   if (activeProvider === "gemini") {
-    let initialTarget = (activeModel || "gemini-1.5-flash").trim().replace(/^models\//, "");
-    if (!initialTarget || initialTarget.includes("gemini-2.0-flash") || initialTarget.includes("gemini-3.8")) {
-      initialTarget = "gemini-1.5-flash";
+    // 1. Fetch exact models activated for this user's API key via ListModels
+    let liveModels = [];
+    let detectedApiVer = "v1beta";
+
+    try {
+      let listRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(key)}`);
+      if (!listRes.ok) {
+        listRes = await fetch(`https://generativelanguage.googleapis.com/v1/models?key=${encodeURIComponent(key)}`);
+        if (listRes.ok) detectedApiVer = "v1";
+      }
+
+      const listText = await listRes.text();
+      if (listRes.ok) {
+        const listData = JSON.parse(listText);
+        const rawList = Array.isArray(listData?.models) ? listData.models : [];
+        liveModels = rawList
+          .filter(m => (m.supportedGenerationMethods || []).includes("generateContent"))
+          .map(m => m.name.replace(/^models\//, ""))
+          .filter(id => !id.includes("embedding") && !id.includes("aqa") && !id.includes("imagen"));
+      } else {
+        let detail = `Gemini API Error (${listRes.status})`;
+        try { detail += `: ${JSON.parse(listText).error.message}`; } catch(e) { detail += `: ${listText.slice(0, 150)}`; }
+        throw new Error(detail);
+      }
+    } catch (err) {
+      if (err.message && err.message.includes("Gemini API Error")) throw err;
     }
 
-    const candidateModels = [
-      initialTarget,
-      "gemini-1.5-flash",
-      "gemini-1.5-pro",
-      "gemini-2.0-flash-exp",
-      "gemini-1.5-flash-8b"
-    ];
+    // Sort live models: flash models first, then pro
+    liveModels.sort((a, b) => {
+      const aScore = a.includes("flash") ? 100 : (a.includes("pro") ? 50 : 10);
+      const bScore = b.includes("flash") ? 100 : (b.includes("pro") ? 50 : 10);
+      return bScore - aScore;
+    });
 
+    // Build candidates: user selection first, then all live models, then common fallbacks
+    const candidates = [
+      activeModel?.trim()?.replace(/^models\//, ""),
+      ...liveModels,
+      "gemini-1.5-flash",
+      "gemini-1.5-flash-latest",
+      "gemini-1.5-pro",
+      "gemini-1.5-pro-latest",
+      "gemini-pro"
+    ].filter(Boolean);
+
+    const uniqueCandidates = [...new Set(candidates)];
     let successData = null;
     let lastErrorMsg = "";
 
-    for (let i = 0; i < candidateModels.length; i++) {
-      const currentModel = candidateModels[i];
-      if (i > 0 && currentModel === candidateModels[0]) continue;
+    // Candidate trial across both api versions if needed
+    for (const modelToTry of uniqueCandidates) {
+      for (const ver of [detectedApiVer, detectedApiVer === "v1beta" ? "v1" : "v1beta"]) {
+        try {
+          const url = `https://generativelanguage.googleapis.com/${ver}/models/${encodeURIComponent(modelToTry)}:generateContent?key=${encodeURIComponent(key)}`;
+          const res = await fetch(url, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              contents: [{ parts: [{ text: `${sys}\n\n${prompt}` }] }],
+              generationConfig: {
+                responseMimeType: "application/json",
+                temperature: 0.85,
+                maxOutputTokens: 600
+              }
+            })
+          });
 
-      try {
-        const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(currentModel)}:generateContent?key=${encodeURIComponent(key)}`;
-        const res = await fetch(url, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            contents: [{ parts: [{ text: `${sys}\n\n${prompt}` }] }],
-            generationConfig: {
-              responseMimeType: "application/json",
-              temperature: 0.85,
-              maxOutputTokens: 600
+          const bodyText = await res.text();
+          if (res.ok) {
+            try {
+              successData = JSON.parse(bodyText);
+              modelUsed = modelToTry;
+              rawText = successData?.candidates?.[0]?.content?.parts?.[0]?.text || "";
+              break;
+            } catch (e) {
+              rawText = bodyText;
+              modelUsed = modelToTry;
+              break;
             }
-          })
-        });
-
-        // Read body stream EXACTLY ONCE
-        const bodyText = await res.text();
-
-        if (res.ok) {
-          try {
-            successData = JSON.parse(bodyText);
-            modelUsed = currentModel;
-            rawText = successData?.candidates?.[0]?.content?.parts?.[0]?.text || "";
-            break; // SUCCESS!
-          } catch (e) {
-            rawText = bodyText;
-            modelUsed = currentModel;
-            break;
+          } else {
+            let detail = `Gemini HTTP ${res.status}`;
+            try {
+              const parsed = JSON.parse(bodyText);
+              if (parsed?.error?.message) detail += `: ${parsed.error.message}`;
+            } catch (e) {
+              detail += `: ${bodyText.slice(0, 160)}`;
+            }
+            lastErrorMsg = detail;
           }
-        } else {
-          let errDetail = `Gemini HTTP ${res.status}`;
-          try {
-            const parsed = JSON.parse(bodyText);
-            if (parsed?.error?.message) errDetail += `: ${parsed.error.message}`;
-          } catch (e) {
-            errDetail += `: ${bodyText.slice(0, 160)}`;
-          }
-          lastErrorMsg = errDetail;
-
-          // Check if error suggests a specific model
-          const suggested = bodyText.match(/models\/(gemini-[\w.-]+)/i);
-          if (suggested && suggested[1] && !candidateModels.includes(suggested[1])) {
-            candidateModels.push(suggested[1]);
-          }
+        } catch (netErr) {
+          lastErrorMsg = netErr.message || String(netErr);
         }
-      } catch (networkErr) {
-        lastErrorMsg = networkErr.message || String(networkErr);
       }
+      if (rawText || successData) break;
     }
 
     if (!rawText && !successData) {
       throw new Error(lastErrorMsg || "Failed to connect to Google Gemini API.");
     }
 
-    // Persist verified model to storage
+    // Persist working model
     try {
       const { aiConfig } = await chrome.storage.local.get("aiConfig");
       if (aiConfig && aiConfig.model !== modelUsed) {
