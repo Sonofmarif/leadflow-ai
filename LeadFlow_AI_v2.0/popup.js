@@ -35,7 +35,7 @@ function getSharedFrameContentHeight(frame) {
     const content = doc.querySelector(".panel") || doc.querySelector(".glass-card") || doc.querySelector(".app-shell");
     if (!content) return 410;
     const rect = content.getBoundingClientRect();
-    return Math.ceil(rect.height + 10) || 410;
+    return Math.ceil(rect.height + 14) || 410;
   } catch (e) {
     return 410;
   }
@@ -44,19 +44,19 @@ function getSharedFrameContentHeight(frame) {
 function resizePopupToActiveFrame() {
   const activeTool = getActiveTool();
   if (activeTool === "ai") {
-    document.documentElement.style.setProperty("--frame-h", "430px");
+    document.documentElement.style.setProperty("--frame-h", "475px");
     return;
   }
   const { frames } = getEls();
   const frame = frames[activeTool];
-  const height = Math.max(240, Math.min(560, getSharedFrameContentHeight(frame) + 4));
+  const height = Math.max(260, Math.min(580, getSharedFrameContentHeight(frame) + 6));
   document.documentElement.style.setProperty("--frame-h", `${height}px`);
 }
 
 function schedulePopupResize() {
   resizePopupToActiveFrame();
   requestAnimationFrame(resizePopupToActiveFrame);
-  setTimeout(resizePopupToActiveFrame, 100);
+  setTimeout(resizePopupToActiveFrame, 80);
 }
 
 function setTool(tool) {
@@ -78,11 +78,19 @@ function setTool(tool) {
   schedulePopupResize();
 }
 
+// ============================================================================
+// 🧠 AI & CONFIG SETTINGS PANEL CONTROLLER
+// ============================================================================
 function initAiSettingsPanel() {
   const apiKeyEl = document.getElementById("aiApiKey");
+  const toggleKeyBtn = document.getElementById("toggleKeyVisibility");
   const providerEl = document.getElementById("aiProvider");
-  const modelEl = document.getElementById("aiModel");
+  const modelSelectEl = document.getElementById("aiModelSelect");
+  const customModelEl = document.getElementById("aiModel");
+  const fetchModelsBtn = document.getElementById("fetchModelsBtn");
   const nicheEl = document.getElementById("aiServiceNiche");
+  const toneEl = document.getElementById("aiTone");
+  const emojisEl = document.getElementById("aiEmojis");
   const uniqueEl = document.getElementById("aiUniquePerTab");
   const enabledEl = document.getElementById("aiEnabled");
   const badgeEl = document.getElementById("aiDetectedBadge");
@@ -91,53 +99,199 @@ function initAiSettingsPanel() {
   const saveBtn = document.getElementById("saveAiConfigBtn");
   const testBtn = document.getElementById("testAiBtn");
   const statusEl = document.getElementById("aiStatusMsg");
+  const diagnosticBox = document.getElementById("aiDiagnosticBox");
+  const diagnosticTitle = document.getElementById("diagnosticTitle");
+  const diagnosticLatency = document.getElementById("diagnosticLatency");
+  const diagnosticPreview = document.getElementById("diagnosticPreview");
+  const nicheChips = document.querySelectorAll(".niche-chip");
 
-  function updateKeyBadge(key) {
-    chrome.runtime.sendMessage({ type: "DETECT_AI_KEY", apiKey: key || "" }, (res) => {
-      if (!badgeEl) return;
-      if (!key || !res?.provider || res.provider === "none") {
-        badgeEl.textContent = "No Key";
-        return;
+  let currentFetchedModels = [];
+
+  // Toggle Password Visibility
+  toggleKeyBtn?.addEventListener("click", () => {
+    if (!apiKeyEl) return;
+    const isPass = apiKeyEl.type === "password";
+    apiKeyEl.type = isPass ? "text" : "password";
+    toggleKeyBtn.textContent = isPass ? "🔒" : "👁️";
+  });
+
+  // Niche quick-pick chips
+  nicheChips.forEach(chip => {
+    chip.addEventListener("click", () => {
+      if (nicheEl) {
+        nicheEl.value = chip.dataset.niche || "";
+        nicheChips.forEach(c => c.classList.remove("active"));
+        chip.classList.add("active");
       }
-      badgeEl.textContent = `${res.name} (${res.defaultModel})`;
-      if (modelEl && !modelEl.value.trim()) {
-        modelEl.placeholder = res.defaultModel;
+    });
+  });
+
+  // Populate Model Dropdown
+  function populateModelDropdown(models = [], bestModel = "", currentModel = "") {
+    if (!modelSelectEl) return;
+    modelSelectEl.innerHTML = "";
+
+    const autoOpt = document.createElement("option");
+    autoOpt.value = "auto";
+    autoOpt.textContent = bestModel ? `✨ Auto: ${bestModel}` : "✨ Auto-Detect Best";
+    modelSelectEl.appendChild(autoOpt);
+
+    const uniqueList = [...new Set(models)].filter(Boolean);
+    uniqueList.forEach(m => {
+      const opt = document.createElement("option");
+      opt.value = m;
+      opt.textContent = m === bestModel ? `⭐ ${m} (Recommended)` : m;
+      modelSelectEl.appendChild(opt);
+    });
+
+    const customOpt = document.createElement("option");
+    customOpt.value = "custom";
+    customOpt.textContent = "✏️ Custom Model ID...";
+    modelSelectEl.appendChild(customOpt);
+
+    if (currentModel && uniqueList.includes(currentModel)) {
+      modelSelectEl.value = currentModel;
+    } else if (currentModel) {
+      modelSelectEl.value = "custom";
+      if (customModelEl) {
+        customModelEl.classList.remove("hidden");
+        customModelEl.value = currentModel;
+      }
+    } else {
+      modelSelectEl.value = "auto";
+    }
+  }
+
+  modelSelectEl?.addEventListener("change", () => {
+    if (modelSelectEl.value === "custom") {
+      customModelEl?.classList.remove("hidden");
+      customModelEl?.focus();
+    } else {
+      customModelEl?.classList.add("hidden");
+      if (customModelEl) customModelEl.value = "";
+    }
+  });
+
+  // Fetch Live Models from Provider
+  function fetchLiveModels(key, provider, currentModel = "") {
+    if (!key) {
+      populateModelDropdown([], "", currentModel);
+      return;
+    }
+
+    chrome.runtime.sendMessage({
+      type: "FETCH_AI_MODELS",
+      apiKey: key,
+      provider: provider || "auto"
+    }, (res) => {
+      if (res?.ok && Array.isArray(res.models)) {
+        currentFetchedModels = res.models;
+        populateModelDropdown(res.models, res.bestModel, currentModel);
+        if (badgeEl) {
+          badgeEl.className = "ai-badge success";
+          badgeEl.textContent = `${res.icon || "✨"} ${res.providerName || "AI"} (${res.bestModel})`;
+        }
+      } else if (res?.fallbackModels) {
+        currentFetchedModels = res.fallbackModels;
+        populateModelDropdown(res.fallbackModels, res.bestModel, currentModel);
       }
     });
   }
 
-  apiKeyEl?.addEventListener("input", () => updateKeyBadge(apiKeyEl.value));
+  fetchModelsBtn?.addEventListener("click", () => {
+    fetchLiveModels(apiKeyEl?.value?.trim() || "", providerEl?.value || "auto", getSelectedModel());
+  });
 
+  function getSelectedModel() {
+    if (modelSelectEl?.value === "custom") {
+      return customModelEl?.value?.trim() || "";
+    }
+    if (modelSelectEl?.value && modelSelectEl.value !== "auto") {
+      return modelSelectEl.value;
+    }
+    return "";
+  }
+
+  // Key Auto-Detection on Keystroke / Paste
+  function handleKeyChange() {
+    const key = apiKeyEl?.value?.trim() || "";
+    const prov = providerEl?.value || "auto";
+
+    chrome.runtime.sendMessage({
+      type: "DETECT_AI_KEY",
+      apiKey: key,
+      forcedProvider: prov
+    }, (res) => {
+      if (!badgeEl) return;
+      if (!key || !res?.provider || res.provider === "none") {
+        badgeEl.className = "ai-badge";
+        badgeEl.textContent = "No Key";
+        return;
+      }
+
+      badgeEl.className = "ai-badge active";
+      badgeEl.textContent = `${res.icon} ${res.name}`;
+
+      // Auto-set provider dropdown if user hasn't locked it to a specific provider
+      if (providerEl && providerEl.value === "auto" && res.provider !== "auto") {
+        // keep provider dropdown on auto or update
+      }
+
+      fetchLiveModels(key, prov, getSelectedModel());
+    });
+  }
+
+  let debounceTimer = null;
+  apiKeyEl?.addEventListener("input", () => {
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(handleKeyChange, 280);
+  });
+
+  providerEl?.addEventListener("change", () => {
+    handleKeyChange();
+  });
+
+  // Load Saved Configuration
   chrome.storage.local.get(["aiConfig", "humanMode", "telemetryWebhookUrl"], (data) => {
     const cfg = data.aiConfig || {};
     if (apiKeyEl) apiKeyEl.value = cfg.apiKey || "";
     if (providerEl) providerEl.value = cfg.provider || "auto";
-    if (modelEl) modelEl.value = cfg.model || "";
-    if (nicheEl) nicheEl.value = cfg.serviceNiche || "";
+    if (nicheEl) nicheEl.value = cfg.serviceNiche || "Emergency Plumber";
+    if (toneEl) toneEl.value = cfg.tone || "urgent";
+    if (emojisEl) emojisEl.checked = cfg.emojis !== false;
     if (uniqueEl) uniqueEl.checked = cfg.uniquePerTab !== false;
     if (enabledEl) enabledEl.checked = !!cfg.enabled;
-    if (humanModeEl) humanModeEl.value = data.humanMode || "safe";
+    if (humanModeEl) humanModeEl.value = data.humanMode || "balanced";
     if (webhookEl) webhookEl.value = data.telemetryWebhookUrl || "";
-    updateKeyBadge(cfg.apiKey || "");
+
+    if (cfg.apiKey) {
+      handleKeyChange();
+    }
   });
 
+  // Save Settings
   function saveConfig(cb) {
+    const model = getSelectedModel();
     const aiConfig = {
       apiKey: apiKeyEl?.value.trim() || "",
       provider: providerEl?.value || "auto",
-      model: modelEl?.value.trim() || "",
-      serviceNiche: nicheEl?.value.trim() || "",
+      model,
+      serviceNiche: nicheEl?.value.trim() || "Emergency Plumber",
+      tone: toneEl?.value || "urgent",
+      emojis: !!emojisEl?.checked,
       uniquePerTab: !!uniqueEl?.checked,
       enabled: !!enabledEl?.checked
     };
+
     chrome.storage.local.set({
       aiConfig,
-      humanMode: humanModeEl?.value || "safe",
+      humanMode: humanModeEl?.value || "balanced",
       telemetryWebhookUrl: webhookEl?.value.trim() || ""
     }, () => {
       if (statusEl) {
         statusEl.style.color = "#34d399";
-        statusEl.textContent = "✅ Settings saved!";
+        statusEl.textContent = "✅ Settings saved successfully!";
+        setTimeout(() => { if (statusEl.textContent.includes("saved")) statusEl.textContent = ""; }, 2500);
       }
       if (cb) cb();
     });
@@ -145,25 +299,75 @@ function initAiSettingsPanel() {
 
   saveBtn?.addEventListener("click", () => saveConfig());
 
+  // 🧪 Diagnostic Test AI Key Connection
   testBtn?.addEventListener("click", () => {
-    saveConfig(() => {
+    const apiKey = apiKeyEl?.value.trim() || "";
+    if (!apiKey) {
       if (statusEl) {
-        statusEl.style.color = "#38bdf8";
-        statusEl.textContent = "⏳ Testing AI connection...";
+        statusEl.style.color = "#f87171";
+        statusEl.textContent = "❌ Please paste your API Key first.";
       }
-      chrome.runtime.sendMessage({
-        type: "TEST_AI_CONNECTION",
-        niche: nicheEl?.value.trim() || "Emergency Plumber"
-      }, (res) => {
-        if (!statusEl) return;
-        if (res?.ok && res.sample?.aiUsed) {
-          statusEl.style.color = "#34d399";
-          statusEl.textContent = `✅ AI Active: "${res.sample.title.slice(0, 38)}..."`;
-        } else {
-          statusEl.style.color = "#f87171";
-          statusEl.textContent = "❌ Check API Key or Enable AI Engine toggle.";
+      return;
+    }
+
+    if (testBtn) {
+      testBtn.disabled = true;
+      testBtn.textContent = "⏳ Testing...";
+    }
+    if (statusEl) {
+      statusEl.style.color = "#38bdf8";
+      statusEl.textContent = "📡 Connecting to AI Provider...";
+    }
+    if (diagnosticBox) diagnosticBox.classList.add("hidden");
+
+    const provider = providerEl?.value || "auto";
+    const model = getSelectedModel();
+    const niche = nicheEl?.value.trim() || "24/7 Emergency Plumber";
+
+    chrome.runtime.sendMessage({
+      type: "TEST_AI_CONNECTION",
+      apiKey,
+      provider,
+      model,
+      niche
+    }, (res) => {
+      if (testBtn) {
+        testBtn.disabled = false;
+        testBtn.textContent = "🧪 Test Connection";
+      }
+
+      if (!statusEl) return;
+
+      if (res?.ok && res.sample) {
+        statusEl.style.color = "#34d399";
+        statusEl.textContent = `✅ Success! Latency: ${res.latencyMs || 0}ms • Model: ${res.modelUsed}`;
+
+        // Show Diagnostic Box
+        if (diagnosticBox && diagnosticTitle && diagnosticLatency && diagnosticPreview) {
+          diagnosticTitle.textContent = `Live Output: ${res.provider.toUpperCase()} (${res.modelUsed})`;
+          diagnosticLatency.textContent = `⚡ ${res.latencyMs || 0}ms`;
+          diagnosticPreview.innerHTML = `
+            <div class="sample-title"><b>Title:</b> ${res.sample.title}</div>
+            <div class="sample-desc"><b>Description:</b> ${res.sample.description}</div>
+          `;
+          diagnosticBox.classList.remove("hidden");
         }
-      });
+
+        // Auto-check "Activate AI Engine" toggle on successful test
+        if (enabledEl) enabledEl.checked = true;
+        saveConfig();
+        schedulePopupResize();
+      } else {
+        statusEl.style.color = "#f87171";
+        statusEl.textContent = `❌ Test Failed: ${res?.error || "Unknown error"}`;
+        if (diagnosticBox && diagnosticTitle && diagnosticLatency && diagnosticPreview) {
+          diagnosticTitle.textContent = "Diagnostic Error";
+          diagnosticLatency.textContent = "Failed";
+          diagnosticPreview.textContent = res?.error || "Check your API key, network connection, or provider limits.";
+          diagnosticBox.classList.remove("hidden");
+        }
+        schedulePopupResize();
+      }
     });
   });
 }

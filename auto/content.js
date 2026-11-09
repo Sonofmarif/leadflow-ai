@@ -2,7 +2,7 @@
 // Merge mode isolation marker
 window.__MERGE_MODE = 'auto';
 const __MERGE_SCRIPT_MODE = 'auto';
-console.log("✅ content.js injected on:", location.href);
+console.log("✅ LeadFlow AI v2.5 content.js injected on:", location.href);
 
 if (location.pathname.startsWith("/marketplace/edit/")) {
   console.log("⏭️ Autofill skipped on edit page:", location.href);
@@ -53,15 +53,10 @@ if (location.pathname.startsWith("/marketplace/edit/")) {
     };
 
     const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-    // Human jitter delays between field fills (anti-detect)
-    const humanSleep = (minMs = 120, maxMs = 400) => sleep(Math.floor(Math.random() * (maxMs - minMs + 1)) + minMs);
+    const humanSleep = (minMs = 80, maxMs = 240) => sleep(Math.floor(Math.random() * (maxMs - minMs + 1)) + minMs);
     const norm = (value) => (value || "").replace(/\s+/g, " ").trim();
     const normLower = (value) => norm(value).toLowerCase();
     const vis = (el) => !!el && el.offsetParent !== null;
-
-    function isActiveVisibleTab() {
-      return document.visibilityState === "visible" && !document.hidden && document.hasFocus();
-    }
 
     function resetDoneFlags() {
       for (const key of Object.keys(DONE)) DONE[key] = false;
@@ -80,9 +75,8 @@ if (location.pathname.startsWith("/marketplace/edit/")) {
 
     function setFieldValue(el, value) {
       if (!el) return false;
-
       const tag = el.tagName?.toLowerCase();
-      el.focus();
+      try { el.focus(); } catch(e) {}
 
       if (tag === "input" || tag === "textarea") {
         const proto = Object.getPrototypeOf(el);
@@ -131,13 +125,14 @@ if (location.pathname.startsWith("/marketplace/edit/")) {
     }
 
     function findUploadInput() {
-      return document.querySelector("input[type='file']");
+      const inputs = Array.from(document.querySelectorAll("input[type='file']"));
+      const imageInput = inputs.find(inp => (inp.accept || "").includes("image") || inp.multiple);
+      return imageInput || inputs[0] || null;
     }
 
     function findFacebookCombobox(labelText) {
       const expected = normLower(labelText);
-      const candidates = [...document.querySelectorAll('label[role="combobox"], [role="combobox"]')]
-        .filter(vis);
+      const candidates = [...document.querySelectorAll('label[role="combobox"], [role="combobox"]')].filter(vis);
 
       return candidates.find((combo) => {
         const labelSpans = [...combo.querySelectorAll("span")];
@@ -152,14 +147,13 @@ if (location.pathname.startsWith("/marketplace/edit/")) {
       return map[raw] || map[normalized] || "";
     }
 
-    async function waitForVisibleOption(value, timeoutMs = 1800) {
+    async function waitForVisibleOption(value, timeoutMs = 1500) {
       const wanted = normLower(value);
       const started = Date.now();
 
       while (Date.now() - started < timeoutMs) {
         if (stopRequested()) return null;
-        const items = [...document.querySelectorAll('[role="option"], [role="menuitem"], [role="button"]')]
-          .filter(vis);
+        const items = [...document.querySelectorAll('[role="option"], [role="menuitem"], [role="button"]')].filter(vis);
 
         const match = items.find((item) => {
           const text = normLower(item.innerText || item.textContent);
@@ -167,7 +161,7 @@ if (location.pathname.startsWith("/marketplace/edit/")) {
         });
 
         if (match) return match;
-        await sleep(90);
+        await sleep(60);
       }
       return null;
     }
@@ -178,7 +172,7 @@ if (location.pathname.startsWith("/marketplace/edit/")) {
       if (!combo) return false;
 
       click(combo);
-      await sleep(120);
+      await sleep(100);
       if (stopRequested()) return false;
 
       const option = await waitForVisibleOption(optionText);
@@ -189,25 +183,41 @@ if (location.pathname.startsWith("/marketplace/edit/")) {
 
       if (stopRequested()) return false;
       click(option);
-      await sleep(120);
+      await sleep(100);
       return !stopRequested();
     }
 
     function getSelectedImage() {
       const images = Array.isArray(DATA?.imageDataList) ? DATA.imageDataList : [];
       if (!images.length) return { data: "", index: 0, total: 0 };
-
-      // RUN_IMAGE_INDEX is already resolved by background.js according to the selected
-      // Single/Multiple mode. Do not re-check storage mode here, otherwise a stale mode
-      // can force every tab back to image 1.
       const index = ((Number(RUN_IMAGE_INDEX) || 0) % images.length + images.length) % images.length;
-
       return { data: images[index] || "", index, total: images.length };
     }
 
     function getImageSignature() {
       const selected = getSelectedImage();
       return selected.data ? `${selected.index}:${selected.data.length}:${selected.data.slice(0, 60)}` : "none";
+    }
+
+    function hasImagePreview() {
+      if (!DATA?.imageDataList?.length) return true;
+      const input = findUploadInput();
+      if (input && input.files && input.files.length > 0) return true;
+
+      // Specifically check for listing photo delete/remove buttons in the photos container
+      const listingPhotoBtn = document.querySelector(
+        'div[aria-label*="Delete photo" i], div[aria-label*="Remove photo" i], div[aria-label*="Delete image" i], div[aria-label*="Remove image" i], div[data-testid*="marketplace_photo" i]'
+      );
+      if (listingPhotoBtn) return true;
+
+      // Check if preview container inside marketplace create form has loaded images
+      const formContainer = document.querySelector('form, div[role="main"]');
+      if (formContainer) {
+        const previewImgs = Array.from(formContainer.querySelectorAll('div[aria-label*="Photos" i] img, div[aria-label*="Preview" i] img, img[alt*="listing" i]'));
+        if (previewImgs.length > 0) return true;
+      }
+
+      return false;
     }
 
     async function stepImage() {
@@ -225,9 +235,8 @@ if (location.pathname.startsWith("/marketplace/edit/")) {
       const selectedImage = getSelectedImage();
       const signature = getImageSignature();
 
-      if (window.__AF_IMAGE_UPLOAD_DONE_SIG__ === signature || uploadInput.files?.length > 0 || hasImagePreview()) {
-        console.log("⏭️ Image already present/uploaded on this tab, skipping duplicate upload");
-        window.__AF_IMAGE_UPLOAD_DONE_SIG__ = signature;
+      // Only skip if THIS exact image was already uploaded on this tab instance
+      if (window.__AF_IMAGE_UPLOAD_DONE_SIG__ === signature && uploadInput.files?.length > 0) {
         DONE.image = true;
         return;
       }
@@ -242,7 +251,6 @@ if (location.pathname.startsWith("/marketplace/edit/")) {
         if (!response.ok) throw new Error("Image fetch failed");
         const blob = await response.blob();
         const originalName = Array.isArray(DATA?.imageFileNames) ? DATA.imageFileNames[selectedImage.index] : "";
-        // Use timestamped unique filename so FB sees each upload as a fresh file
         const ts = Date.now();
         const ext = (originalName || "jpg").split(".").pop() || "jpg";
         const fileName = `listing_${ts}_${selectedImage.index + 1}.${ext}`;
@@ -252,12 +260,13 @@ if (location.pathname.startsWith("/marketplace/edit/")) {
         uploadInput.files = dt.files;
         uploadInput.dispatchEvent(new Event("input", { bubbles: true }));
         uploadInput.dispatchEvent(new Event("change", { bubbles: true }));
+        uploadInput.dispatchEvent(new Event("blur", { bubbles: true }));
 
-        console.log(RUN_IMAGE_MODE === "multiple" ? `✅ Image uploaded (${selectedImage.index + 1}/${selectedImage.total})` : "✅ Image uploaded");
+        console.log(RUN_IMAGE_MODE === "multiple" ? `✅ Photo uploaded (${selectedImage.index + 1}/${selectedImage.total})` : "✅ Photo uploaded");
         window.__AF_IMAGE_UPLOAD_DONE_SIG__ = signature;
         DONE.image = true;
       } catch (error) {
-        console.log("❌ Image upload failed:", error);
+        console.log("❌ Image upload error:", error);
       } finally {
         window.__AF_IMAGE_UPLOAD_IN_PROGRESS__ = null;
       }
@@ -271,7 +280,7 @@ if (location.pathname.startsWith("/marketplace/edit/")) {
       if (!field) return;
 
       if (setFieldValue(field, DATA.title)) {
-        console.log("✅ Title filled");
+        console.log("✅ Title filled:", DATA.title);
         DONE.title = true;
       }
     }
@@ -284,7 +293,7 @@ if (location.pathname.startsWith("/marketplace/edit/")) {
       if (!field) return;
 
       if (setFieldValue(field, DATA.price)) {
-        console.log("✅ Price filled");
+        console.log("✅ Price filled:", DATA.price);
         DONE.price = true;
       }
     }
@@ -315,7 +324,6 @@ if (location.pathname.startsWith("/marketplace/edit/")) {
       if (stopRequested() || DONE.availability) return;
       const mode = String(DATA?.availabilityMode || "default").toLowerCase();
 
-      // Preserve the existing Default behaviour: do not touch Facebook's Availability field.
       if (mode !== "in_stock") {
         DONE.availability = true;
         return;
@@ -344,15 +352,7 @@ if (location.pathname.startsWith("/marketplace/edit/")) {
       return Object.values(DONE).every(Boolean);
     }
 
-    function hasImagePreview() {
-      if (!DATA?.imageDataList?.length) return true;
-      const input = findUploadInput();
-      if (input?.files?.length) return true;
-      const images = Array.from(document.querySelectorAll("img"));
-      return images.some((image) => (image.src || "").startsWith("blob:") || (image.src || "").startsWith("data:"));
-    }
-
-    async function waitAutofillReallyStable(timeoutMs = 1200) {
+    async function waitAutofillReallyStable(timeoutMs = 900) {
       const started = Date.now();
       while (Date.now() - started < timeoutMs) {
         if (stopRequested()) return false;
@@ -361,13 +361,12 @@ if (location.pathname.startsWith("/marketplace/edit/")) {
         const descriptionField = findDescriptionField();
         const descriptionValue = descriptionField ? (descriptionField.value ?? descriptionField.textContent ?? "").trim() : "";
         const descriptionOk = !DATA?.description || descriptionValue === String(DATA.description).trim();
-        const imageOk = hasImagePreview();
 
-        if (titleOk && priceOk && descriptionOk && imageOk) {
-          await sleep(250);
+        if (titleOk && priceOk && descriptionOk) {
+          await sleep(150);
           return true;
         }
-        await sleep(120);
+        await sleep(80);
       }
       return true;
     }
@@ -379,22 +378,22 @@ if (location.pathname.startsWith("/marketplace/edit/")) {
       try {
         await stepImage();
         if (stopRequested()) return;
-        await humanSleep(120, 350);
+        await humanSleep(60, 180);
         stepTitle();
         if (stopRequested()) return;
-        await humanSleep(80, 220);
+        await humanSleep(50, 150);
         stepPrice();
         if (stopRequested()) return;
-        await humanSleep(100, 280);
+        await humanSleep(60, 180);
         await stepCategory();
         if (stopRequested()) return;
-        await humanSleep(100, 300);
+        await humanSleep(60, 180);
         await stepCondition();
         if (stopRequested()) return;
-        await humanSleep(80, 200);
+        await humanSleep(50, 150);
         await stepAvailability();
         if (stopRequested()) return;
-        await humanSleep(120, 320);
+        await humanSleep(60, 180);
         stepDescription();
 
         if (!stopRequested() && allDone()) {
@@ -403,7 +402,9 @@ if (location.pathname.startsWith("/marketplace/edit/")) {
             DONE_NOTIFIED = true;
             const stable = await waitAutofillReallyStable();
             if (!stable || stopRequested()) return;
-            try { chrome.runtime.sendMessage({ type: "AF_FILL_DONE", url: location.href, stopEpoch: RUN_STOP_EPOCH }); } catch (e) {}
+            try {
+              chrome.runtime.sendMessage({ type: "AF_FILL_DONE", url: location.href, stopEpoch: RUN_STOP_EPOCH });
+            } catch (e) {}
           }
           if (OBS) OBS.disconnect();
         }
@@ -414,17 +415,13 @@ if (location.pathname.startsWith("/marketplace/edit/")) {
       }
     }
 
-    // The background sequence activates each listing tab and explicitly starts autofill
-    // with AF_RUN_NOW. Do not auto-run on injection, storage changes, focus, or visibility:
-    // those events were causing two overlapping fills and a false “background tab paused” state.
     function loadDataAndTick() {
       if (stopRequested()) return;
       chrome.storage.local.get(
         ["title", "price", "category", "condition", "availabilityMode", "description", "imageMode", "imageDataList", "imageFileNames"],
         (data) => {
           DATA = data;
-          // Apply AI overrides if set by background via AF_RUN_NOW message
-          if (window.__AF_OVERRIDE_TITLE__)       { DATA.title       = window.__AF_OVERRIDE_TITLE__;       }
+          if (window.__AF_OVERRIDE_TITLE__) { DATA.title = window.__AF_OVERRIDE_TITLE__; }
           if (window.__AF_OVERRIDE_DESCRIPTION__) { DATA.description = window.__AF_OVERRIDE_DESCRIPTION__; }
           resetDoneFlags();
           console.log("✅ Data loaded for requested autofill:", DATA);
@@ -433,7 +430,7 @@ if (location.pathname.startsWith("/marketplace/edit/")) {
       );
     }
 
-    console.log("✅ Autofill engine ready — waiting for background command.");
+    console.log("✅ LeadFlow AI Autofill engine ready — waiting for command.");
 
     chrome.runtime.onMessage.addListener((message) => {
       if (message?.type === "STOP_EXTENSION_WORK") {
@@ -452,24 +449,19 @@ if (location.pathname.startsWith("/marketplace/edit/")) {
         window.__AF_RUN_IMAGE_MODE__ = RUN_IMAGE_MODE;
         STOP_REQUESTED = false;
         window.__MP_EXT_STOP_EPOCH__ = RUN_STOP_EPOCH;
-        // Store AI overrides on window so loadDataAndTick can apply them
-        if (message.overrideTitle)       window.__AF_OVERRIDE_TITLE__       = message.overrideTitle;
+        if (message.overrideTitle) window.__AF_OVERRIDE_TITLE__ = message.overrideTitle;
         if (message.overrideDescription) window.__AF_OVERRIDE_DESCRIPTION__ = message.overrideDescription;
-        console.log(
-          RUN_IMAGE_MODE === "multiple"
-            ? `🖼️ Assigned image slot ${RUN_IMAGE_INDEX + 1}${message.imageCount ? `/${message.imageCount}` : ""}`
-            : "🖼️ Assigned single image slot 1"
-        );
+
+        console.log(`🖼️ Slot ${RUN_IMAGE_INDEX + 1} (${RUN_IMAGE_MODE}) ready.`);
         loadDataAndTick();
       }
     });
 
     let lastTick = 0;
     OBS = new MutationObserver(() => {
-      // Before AF_RUN_NOW arrives, this content script must remain idle.
       if (!DATA || DONE_NOTIFIED || stopRequested()) return;
       const now = Date.now();
-      if (now - lastTick < 300) return;
+      if (now - lastTick < 200) return;
       lastTick = now;
       tick();
     });

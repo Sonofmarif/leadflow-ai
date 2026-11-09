@@ -18,7 +18,7 @@
     </nav>
 
     <div class="developer-credit">
-      <div class="developer-credit-text">LEADFLOW AI • ANTI-DETECT ENGINE v2.0</div>
+      <div class="developer-credit-text">LEADFLOW AI • ENTERPRISE ANTI-DETECT SUITE v2.5</div>
       <div class="developer-neon-line" aria-hidden="true">
         <span class="neon-runner neon-runner-a"></span>
       </div>
@@ -36,58 +36,117 @@
       </div>
       <div id="wrapper-ai" class="frame-wrapper hidden ai-settings-scroll" role="tabpanel">
         <div class="ai-panel">
+
+          <!-- AI Provider & Key Card -->
           <div class="ai-card">
             <div class="ai-card-header">
-              <span class="ai-title">🧠 Universal AI Key (BYOK)</span>
+              <span class="ai-title">🧠 Universal AI Engine (BYOK)</span>
               <span id="aiDetectedBadge" class="ai-badge">No Key</span>
             </div>
-            <p class="ai-subtext">Paste Gemini, Groq, OpenAI, OpenRouter, or NVIDIA key. Auto-detected instantly.</p>
-            <input id="aiApiKey" type="password" class="ai-input" placeholder="Paste API Key (AIza..., gsk_..., sk-or-..., sk-...)" />
+            <p class="ai-subtext">Paste any key (Gemini, Groq, OpenAI, Claude, OpenRouter, DeepSeek). Auto-detected instantly.</p>
+            <div class="key-input-wrap">
+              <input id="aiApiKey" type="password" class="ai-input" placeholder="Paste API Key (AIza..., gsk_..., sk-..., sk-ant-...)" />
+              <button type="button" id="toggleKeyVisibility" class="key-toggle-btn" title="Show/Hide Key">👁️</button>
+            </div>
+
             <div class="ai-grid-2">
               <div>
                 <label class="ai-label" for="aiProvider">Provider</label>
                 <select id="aiProvider" class="ai-select">
-                  <option value="auto">✨ Auto-Detect</option>
-                  <option value="gemini">Google Gemini (Free)</option>
-                  <option value="groq">Groq (Free / Ultra Fast)</option>
-                  <option value="openrouter">OpenRouter</option>
-                  <option value="openai">OpenAI (GPT-4o mini)</option>
-                  <option value="nvidia">NVIDIA NIM</option>
+                  <option value="auto">✨ Auto-Detect Provider</option>
+                  <option value="gemini">🤖 Google Gemini (Free & Fast)</option>
+                  <option value="groq">⚡ Groq Cloud (Ultra-Fast)</option>
+                  <option value="openai">🧠 OpenAI (GPT-4o mini / 4o)</option>
+                  <option value="anthropic">🔮 Anthropic Claude</option>
+                  <option value="openrouter">🌐 OpenRouter (200+ Models)</option>
+                  <option value="deepseek">👁️ DeepSeek</option>
+                  <option value="nvidia">🟩 NVIDIA NIM</option>
                 </select>
               </div>
               <div>
-                <label class="ai-label" for="aiModel">Model (Optional)</label>
-                <input id="aiModel" type="text" class="ai-input" placeholder="Auto default" />
+                <div class="model-header-row">
+                  <label class="ai-label" for="aiModelSelect">Active Model</label>
+                  <button type="button" id="fetchModelsBtn" class="link-btn" title="Refresh live models from API">🔄 Refresh</button>
+                </div>
+                <select id="aiModelSelect" class="ai-select">
+                  <option value="auto">✨ Auto Select Optimal</option>
+                </select>
+                <input id="aiModel" type="text" class="ai-input hidden" placeholder="Custom Model ID" />
               </div>
             </div>
-            <label class="ai-label" for="aiServiceNiche">Service Niche / Lead Category (USA)</label>
-            <input id="aiServiceNiche" type="text" class="ai-input" placeholder="e.g. Emergency Plumber, HVAC Repair, Appliance Repair" />
-            <div class="ai-toggle-row">
-              <span>Enable AI Unique Title/Desc Per Tab</span>
+
+            <!-- Niche & Quick Chips -->
+            <label class="ai-label" for="aiServiceNiche">Service Niche / Business Category</label>
+            <input id="aiServiceNiche" type="text" class="ai-input" placeholder="e.g. 24/7 Emergency Plumber, HVAC Repair, Appliance Repair" />
+
+            <div class="niche-chips" id="nicheChips">
+              <button type="button" class="niche-chip" data-niche="24/7 Emergency Plumber">🔧 Plumbing</button>
+              <button type="button" class="niche-chip" data-niche="HVAC Repair & AC Installation">❄️ HVAC</button>
+              <button type="button" class="niche-chip" data-niche="Appliance Repair Service">🧺 Appliances</button>
+              <button type="button" class="niche-chip" data-niche="Auto Repair & Mobile Mechanic">🚗 Auto</button>
+              <button type="button" class="niche-chip" data-niche="Licensed Electrician Services">⚡ Electrical</button>
+              <button type="button" class="niche-chip" data-niche="Roofing Repair & Replacement">🏠 Roofing</button>
+            </div>
+
+            <!-- Copywriting Tone & Options -->
+            <div class="ai-grid-2">
+              <div>
+                <label class="ai-label" for="aiTone">Copywriting Tone</label>
+                <select id="aiTone" class="ai-select">
+                  <option value="urgent">⚡ Urgent Call-to-Action (High Conversion)</option>
+                  <option value="professional">🏆 Licensed & Insured Contractor</option>
+                  <option value="bargain">🏷️ Flat-Rate Deals & Discounts</option>
+                </select>
+              </div>
+              <div class="toggle-col">
+                <label class="ai-toggle-row">
+                  <span>Smart Emojis</span>
+                  <input id="aiEmojis" type="checkbox" class="ai-checkbox" checked />
+                </label>
+              </div>
+            </div>
+
+            <label class="ai-toggle-row">
+              <span>Unique Title & Desc Per Tab</span>
               <input id="aiUniquePerTab" type="checkbox" class="ai-checkbox" checked />
-            </div>
-            <div class="ai-toggle-row">
-              <span>Activate AI Engine</span>
+            </label>
+
+            <label class="ai-toggle-row activate-row">
+              <span class="activate-label">🚀 Activate AI Engine</span>
               <input id="aiEnabled" type="checkbox" class="ai-checkbox" />
-            </div>
+            </label>
           </div>
+
+          <!-- Speed & Anti-Ban Settings -->
           <div class="ai-card">
             <div class="ai-card-header">
-              <span class="ai-title">🛡️ Anti-Ban & Human Speed</span>
+              <span class="ai-title">🛡️ Anti-Detect & Speed Profile</span>
             </div>
-            <label class="ai-label" for="humanModeSelect">Execution Speed Profile</label>
+            <label class="ai-label" for="humanModeSelect">Automation Speed Mode</label>
             <select id="humanModeSelect" class="ai-select">
-              <option value="safe">🛡️ Safe Human Mode (Recommended - Anti-Ban)</option>
-              <option value="balanced">⚖️ Balanced Mode (Medium Random Delays)</option>
-              <option value="turbo">⚡ Turbo Mode (Fast - Higher Risk)</option>
+              <option value="balanced">⚖️ Balanced Mode (Recommended - Safe & Snappy)</option>
+              <option value="turbo">⚡ Turbo Blitz (Ultra-Fast Bulk Posting)</option>
+              <option value="safe">🛡️ Stealth Human Mode (Randomized Jitter)</option>
             </select>
-            <label class="ai-label" for="telemetryWebhookUrl">Cloudflare Error Webhook URL (Optional)</label>
+            <label class="ai-label" for="telemetryWebhookUrl">Error Webhook URL (Optional Cloudflare Worker)</label>
             <input id="telemetryWebhookUrl" type="url" class="ai-input" placeholder="https://your-worker.workers.dev/report" />
           </div>
+
+          <!-- Actions: Test & Save -->
           <div class="ai-actions">
-            <button id="testAiBtn" type="button" class="ai-btn ai-btn-secondary">🧪 Test AI Key</button>
+            <button id="testAiBtn" type="button" class="ai-btn ai-btn-secondary">🧪 Test Connection</button>
             <button id="saveAiConfigBtn" type="button" class="ai-btn ai-btn-primary">💾 Save Settings</button>
           </div>
+
+          <!-- Live Diagnostic Result Box -->
+          <div id="aiDiagnosticBox" class="ai-diagnostic-box hidden">
+            <div class="diagnostic-header">
+              <span id="diagnosticTitle">Diagnostic Result</span>
+              <span id="diagnosticLatency" class="latency-badge">0ms</span>
+            </div>
+            <div id="diagnosticPreview" class="diagnostic-preview"></div>
+          </div>
+
           <div id="aiStatusMsg" class="ai-status"></div>
         </div>
       </div>

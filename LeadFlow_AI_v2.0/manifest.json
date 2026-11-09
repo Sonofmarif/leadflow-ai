@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "LeadFlow AI — Marketplace Automation Suite",
-  "version": "2.0.0",
-  "description": "Enterprise Anti-Detect Facebook Marketplace Automation, AI Listing Generator & Lead Engine.",
+  "version": "2.5.0",
+  "description": "Enterprise Anti-Detect Facebook Marketplace Automation, AI Listing Copywriter & Image Scraper.",
   "permissions": [
     "storage",
     "unlimitedStorage",
@@ -14,11 +14,17 @@
   ],
   "host_permissions": [
     "*://*.facebook.com/*",
+    "https://*.facebook.com/*",
     "https://api.openai.com/*",
     "https://generativelanguage.googleapis.com/*",
     "https://api.groq.com/*",
     "https://openrouter.ai/*",
-    "https://integrate.api.nvidia.com/*"
+    "https://integrate.api.nvidia.com/*",
+    "https://api.anthropic.com/*",
+    "https://api.deepseek.com/*",
+    "https://api.mistral.ai/*",
+    "https://*/*",
+    "http://*/*"
   ],
   "background": {
     "service_worker": "background.js"
